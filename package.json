@@ -1,0 +1,12 @@
+{
+  "name": "afm-json-bridge",
+  "version": "0.1.0",
+  "description": "Convert font metrics between Adobe AFM and a JSON representation",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/afm.js",
+  "types": "dist/afm.d.ts",
+  "scripts": {
+    "build": "tsc"
+  }
+}
