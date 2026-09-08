@@ -6,6 +6,9 @@
   "type": "module",
   "main": "dist/afm.js",
   "types": "dist/afm.d.ts",
+  "bin": {
+    "afm-json-bridge": "dist/cli.js"
+  },
   "scripts": {
     "build": "tsc"
   }

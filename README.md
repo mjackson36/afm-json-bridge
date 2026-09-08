@@ -83,6 +83,34 @@ ConversionError: field "width" must be a number, got string (line 6, column 15)
                   ^
 ```
 
+## CLI
+
+There's also a small command-line wrapper. It picks the format on each side
+from the file extension, so most invocations don't need any flags:
+
+```
+$ node dist/cli.js Helvetica.afm helvetica.json
+$ node dist/cli.js helvetica.json Helvetica.afm
+```
+
+Leave off the output path and the result is printed to stdout, in the
+format opposite the input's:
+
+```
+$ node dist/cli.js Helvetica.afm > helvetica.json
+```
+
+Parse errors are printed to stderr with the file name prefixed, and the
+process exits non-zero:
+
+```
+$ node dist/cli.js broken.afm
+broken.afm: width "12x" is not a number (line 4, column 15)
+
+4 | C 65 ; WX 12x ; N A ;
+                  ^
+```
+
 ## Status
 
 This is a young, dependency-free project. The AFM parser covers the header
