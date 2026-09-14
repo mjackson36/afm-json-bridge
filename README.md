@@ -122,6 +122,18 @@ composite character data are not read yet. See the roadmap below.
 There are no runtime dependencies. To compile, install TypeScript yourself
 (`npm install --save-dev typescript` or a global install) and run `tsc`.
 
+## Testing
+
+Tests use `node:test` and `node:assert`, so nothing beyond TypeScript is
+needed to run them:
+
+```
+$ npm test
+```
+
+This compiles `src` and `test` into `dist-test` and runs the suite with
+Node's built-in test runner.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
