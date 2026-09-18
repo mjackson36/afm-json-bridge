@@ -46,6 +46,9 @@ The JSON shape is a straightforward record:
   "glyphs": [
     { "name": "space", "code": 32, "width": 278 },
     { "name": "A", "code": 65, "width": 667, "bbox": [4, 0, 662, 718] }
+  ],
+  "kerningPairs": [
+    { "first": "A", "second": "V", "amount": -60 }
   ]
 }
 ```
@@ -114,8 +117,8 @@ broken.afm: width "12x" is not a number (line 4, column 15)
 ## Status
 
 This is a young, dependency-free project. The AFM parser covers the header
-fields and `C`/`WX`/`N`/`B` char metrics fields; kerning pairs (`KPX`) and
-composite character data are not read yet. See the roadmap below.
+fields, `C`/`WX`/`N`/`B` char metrics fields, and `KPX` kerning pairs;
+composite character (`CC`) data is not read yet.
 
 ## Building
 

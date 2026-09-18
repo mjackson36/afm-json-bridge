@@ -4,6 +4,21 @@ import { parseAfm, toAfm } from "../src/afm.js";
 import type { FontMetrics } from "../src/afm.js";
 import { ConversionError } from "../src/errors.js";
 
+const KERNED_AFM = [
+  "StartFontMetrics 4.1",
+  "FontName Example",
+  "StartCharMetrics 2",
+  "C 65 ; WX 667 ; N A ;",
+  "C 86 ; WX 611 ; N V ;",
+  "EndCharMetrics",
+  "StartKernData",
+  "StartKernPairs 1",
+  "KPX A V -60",
+  "EndKernPairs",
+  "EndKernData",
+  "EndFontMetrics",
+].join("\n");
+
 const VALID_AFM = [
   "StartFontMetrics 4.1",
   "FontName Example-Regular",
@@ -38,7 +53,64 @@ test("parses header fields and char metrics", () => {
       { name: "space", code: 32, width: 278, bbox: undefined },
       { name: "A", code: 65, width: 667, bbox: [4, 0, 662, 718] },
     ],
+    kerningPairs: undefined,
   });
+});
+
+test("parses KPX kerning pairs", () => {
+  const metrics = parseAfm(KERNED_AFM);
+  assert.deepEqual(metrics.kerningPairs, [{ first: "A", second: "V", amount: -60 }]);
+});
+
+test("reports the exact line and column of a malformed kerning amount", () => {
+  const source = [
+    "StartFontMetrics 4.1",
+    "FontName Example",
+    "StartCharMetrics 0",
+    "EndCharMetrics",
+    "StartKernData",
+    "StartKernPairs 1",
+    "KPX A V wide",
+    "EndKernPairs",
+    "EndKernData",
+    "EndFontMetrics",
+  ].join("\n");
+
+  assert.throws(
+    () => parseAfm(source),
+    (err: unknown) => {
+      assert.ok(err instanceof ConversionError);
+      assert.equal(err.line, 7);
+      assert.equal(err.column, 9);
+      assert.match(err.message, /kerning amount "wide" is not a number/);
+      return true;
+    },
+  );
+});
+
+test("rejects a kern pair count that does not match StartKernPairs", () => {
+  const source = [
+    "StartFontMetrics 4.1",
+    "FontName Example",
+    "StartCharMetrics 0",
+    "EndCharMetrics",
+    "StartKernData",
+    "StartKernPairs 2",
+    "KPX A V -60",
+    "EndKernPairs",
+    "EndKernData",
+    "EndFontMetrics",
+  ].join("\n");
+
+  assert.throws(
+    () => parseAfm(source),
+    (err: unknown) => {
+      assert.ok(err instanceof ConversionError);
+      assert.equal(err.line, 6);
+      assert.match(err.message, /declared 2 pairs but 1 were found/);
+      return true;
+    },
+  );
 });
 
 test("reports the exact line and column of a malformed width", () => {
@@ -115,6 +187,7 @@ test("round-trips through toAfm", () => {
       { name: "space", code: 32, width: 278, bbox: undefined },
       { name: "A", code: 65, width: 667, bbox: [4, 0, 662, 718] },
     ],
+    kerningPairs: [{ first: "A", second: "V", amount: -60 }],
   };
 
   assert.deepEqual(parseAfm(toAfm(metrics)), metrics);

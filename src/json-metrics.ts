@@ -1,5 +1,5 @@
 import { ConversionError } from "./errors.js";
-import type { FontMetrics, GlyphMetrics } from "./afm.js";
+import type { FontMetrics, GlyphMetrics, KerningPair } from "./afm.js";
 
 // JSON.parse gives no position information on failure, and it gives none at
 // all for "valid JSON, wrong shape" mistakes (a string where a number was
@@ -360,6 +360,20 @@ function toFontMetrics(node: JsonNode, lineText: (n: number) => string): FontMet
     throw new ConversionError(`field "glyphs" must be an array, got ${glyphsNode.kind}`, glyphsNode.line, glyphsNode.column, lineText(glyphsNode.line));
   }
 
+  const kerningPairsNode = obj.entries.get("kerningPairs");
+  let kerningPairs: KerningPair[] | undefined;
+  if (kerningPairsNode) {
+    if (kerningPairsNode.kind !== "array") {
+      throw new ConversionError(
+        `field "kerningPairs" must be an array, got ${kerningPairsNode.kind}`,
+        kerningPairsNode.line,
+        kerningPairsNode.column,
+        lineText(kerningPairsNode.line),
+      );
+    }
+    kerningPairs = kerningPairsNode.items.map((item, index) => toKerningPair(item, index, lineText));
+  }
+
   return {
     fontName: expectString(obj, "fontName", lineText),
     fullName: optionalString(obj, "fullName", lineText),
@@ -373,6 +387,7 @@ function toFontMetrics(node: JsonNode, lineText: (n: number) => string): FontMet
     capHeight: optionalNumber(obj, "capHeight", lineText),
     xHeight: optionalNumber(obj, "xHeight", lineText),
     glyphs: glyphsNode.items.map((item, index) => toGlyphMetrics(item, index, lineText)),
+    kerningPairs,
   };
 }
 
@@ -408,6 +423,15 @@ function toGlyphMetrics(node: JsonNode, index: number, lineText: (n: number) => 
     code: optionalNumber(obj, "code", lineText) ?? -1,
     width: expectNumber(obj, "width", lineText),
     bbox,
+  };
+}
+
+function toKerningPair(node: JsonNode, index: number, lineText: (n: number) => string): KerningPair {
+  const obj = expectObject(node, `kerningPairs[${index}]`, lineText);
+  return {
+    first: expectString(obj, "first", lineText),
+    second: expectString(obj, "second", lineText),
+    amount: expectNumber(obj, "amount", lineText),
   };
 }
 

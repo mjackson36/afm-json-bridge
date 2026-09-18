@@ -8,6 +8,13 @@ export interface GlyphMetrics {
   bbox?: [number, number, number, number];
 }
 
+export interface KerningPair {
+  first: string;
+  second: string;
+  /** Horizontal adjustment in glyph space units, applied when `second` follows `first`. */
+  amount: number;
+}
+
 export interface FontMetrics {
   fontName: string;
   fullName?: string;
@@ -21,6 +28,7 @@ export interface FontMetrics {
   capHeight?: number;
   xHeight?: number;
   glyphs: GlyphMetrics[];
+  kerningPairs?: KerningPair[];
 }
 
 /**
@@ -44,12 +52,16 @@ export function parseAfm(source: string): FontMetrics {
   let capHeight: number | undefined;
   let xHeight: number | undefined;
   const glyphs: GlyphMetrics[] = [];
+  const kerningPairs: KerningPair[] = [];
 
   let sawStart = false;
   let sawEnd = false;
   let inCharMetrics = false;
   let expectedGlyphCount: number | null = null;
   let startCharMetricsLine = 0;
+  let inKernPairs = false;
+  let expectedKernPairCount: number | null = null;
+  let startKernPairsLine = 0;
 
   for (let i = 0; i < lines.length; i++) {
     const lineNumber = i + 1;
@@ -83,6 +95,33 @@ export function parseAfm(source: string): FontMetrics {
       expectedGlyphCount = count;
       startCharMetricsLine = lineNumber;
       inCharMetrics = true;
+      continue;
+    }
+
+    if (trimmed === "EndKernPairs") {
+      inKernPairs = false;
+      continue;
+    }
+
+    if (inKernPairs) {
+      kerningPairs.push(parseKernPairLine(line, lineNumber));
+      continue;
+    }
+
+    if (trimmed.startsWith("StartKernPairs")) {
+      const parts = trimmed.split(/\s+/);
+      const count = Number(parts[1]);
+      if (parts.length < 2 || Number.isNaN(count)) {
+        throw new ConversionError(
+          'StartKernPairs must be followed by a pair count',
+          lineNumber,
+          1,
+          line,
+        );
+      }
+      expectedKernPairCount = count;
+      startKernPairsLine = lineNumber;
+      inKernPairs = true;
       continue;
     }
 
@@ -167,6 +206,13 @@ export function parseAfm(source: string): FontMetrics {
       1,
     );
   }
+  if (expectedKernPairCount !== null && kerningPairs.length !== expectedKernPairCount) {
+    throw new ConversionError(
+      `StartKernPairs declared ${expectedKernPairCount} pairs but ${kerningPairs.length} were found`,
+      startKernPairsLine,
+      1,
+    );
+  }
 
   return {
     fontName,
@@ -181,6 +227,7 @@ export function parseAfm(source: string): FontMetrics {
     capHeight,
     xHeight,
     glyphs,
+    kerningPairs: kerningPairs.length > 0 ? kerningPairs : undefined,
   };
 }
 
@@ -203,6 +250,15 @@ export function toAfm(metrics: FontMetrics): string {
     lines.push(`C ${glyph.code} ; WX ${glyph.width} ; N ${glyph.name} ;${bbox}`);
   }
   lines.push("EndCharMetrics");
+  if (metrics.kerningPairs && metrics.kerningPairs.length > 0) {
+    lines.push("StartKernData");
+    lines.push(`StartKernPairs ${metrics.kerningPairs.length}`);
+    for (const pair of metrics.kerningPairs) {
+      lines.push(`KPX ${pair.first} ${pair.second} ${pair.amount}`);
+    }
+    lines.push("EndKernPairs");
+    lines.push("EndKernData");
+  }
   lines.push("EndFontMetrics");
   return lines.join("\n") + "\n";
 }
@@ -331,4 +387,39 @@ function parseCharMetricsLine(line: string, lineNumber: number): GlyphMetrics {
   }
 
   return { code, width, name, bbox };
+}
+
+/** Splits a line on whitespace while tracking the column each token started at. */
+function tokenizeWithColumns(line: string): { text: string; column: number }[] {
+  const tokens: { text: string; column: number }[] = [];
+  const pattern = /\S+/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(line)) !== null) {
+    tokens.push({ text: match[0], column: match.index + 1 });
+  }
+  return tokens;
+}
+
+function parseKernPairLine(line: string, lineNumber: number): KerningPair {
+  const tokens = tokenizeWithColumns(line);
+  const firstColumn = tokens[0]?.column ?? 1;
+
+  if (tokens.length === 0 || tokens[0].text !== "KPX") {
+    throw new ConversionError(`expected "KPX" but found "${tokens[0]?.text ?? ""}"`, lineNumber, firstColumn, line);
+  }
+  if (tokens.length < 4) {
+    throw new ConversionError(
+      "KPX line requires a first glyph name, a second glyph name, and a kerning amount",
+      lineNumber,
+      firstColumn,
+      line,
+    );
+  }
+
+  const amount = Number(tokens[3].text);
+  if (Number.isNaN(amount)) {
+    throw new ConversionError(`kerning amount "${tokens[3].text}" is not a number`, lineNumber, tokens[3].column, line);
+  }
+
+  return { first: tokens[1].text, second: tokens[2].text, amount };
 }

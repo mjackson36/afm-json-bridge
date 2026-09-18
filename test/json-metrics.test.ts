@@ -29,7 +29,40 @@ test("parses a minimal document and fills in defaults", () => {
       { name: "space", code: 32, width: 278, bbox: undefined },
       { name: "A", code: -1, width: 667, bbox: [4, 0, 662, 718] },
     ],
+    kerningPairs: undefined,
   });
+});
+
+test("parses kerning pairs", () => {
+  const source = JSON.stringify({
+    fontName: "Example",
+    glyphs: [],
+    kerningPairs: [{ first: "A", second: "V", amount: -60 }],
+  });
+
+  assert.deepEqual(parseJsonMetrics(source).kerningPairs, [{ first: "A", second: "V", amount: -60 }]);
+});
+
+test("reports the exact line and column of a malformed kerning pair", () => {
+  const source = [
+    "{",
+    '  "fontName": "Example",',
+    '  "glyphs": [],',
+    '  "kerningPairs": [',
+    '    { "first": "A", "second": "V", "amount": "wide" }',
+    "  ]",
+    "}",
+  ].join("\n");
+
+  assert.throws(
+    () => parseJsonMetrics(source),
+    (err: unknown) => {
+      assert.ok(err instanceof ConversionError);
+      assert.equal(err.line, 5);
+      assert.match(err.message, /field "amount" must be a number, got string/);
+      return true;
+    },
+  );
 });
 
 test("reports a missing required field", () => {
@@ -103,6 +136,7 @@ test("round-trips through toJsonMetrics", () => {
       { name: "space", code: 32, width: 278, bbox: undefined },
       { name: "A", code: 65, width: 667, bbox: [4, 0, 662, 718] },
     ],
+    kerningPairs: [{ first: "A", second: "V", amount: -60 }],
   };
 
   assert.deepEqual(parseJsonMetrics(toJsonMetrics(metrics)), metrics);
